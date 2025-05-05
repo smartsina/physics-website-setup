@@ -1,21 +1,21 @@
 #!/bin/bash
 
-# بررسی دسترسی روت
+# Check for root privileges
 if [ "$EUID" -ne 0 ]; then 
-    echo "لطفا اسکریپت را با دسترسی روت اجرا کنید (از sudo استفاده کنید)"
+    echo "Please run this script as root (use sudo)"
     exit 1
 fi
 
-# دریافت اطلاعات دامنه و ایمیل از کاربر
-read -p "نام دامنه خود را وارد کنید (مثال: example.com): " domain_name
-read -p "آدرس ایمیل خود را وارد کنید: " email_address
+# Get domain and email from user
+read -p "Enter your domain name (e.g. example.com): " domain_name
+read -p "Enter your email address: " email_address
 
-# بررسی وضعیت پورت‌های مورد نیاز
-echo "در حال بررسی پورت‌های مورد نیاز..."
+# Check required ports
+echo "Checking required ports..."
 check_port() {
     if netstat -tuln | grep -q ":$1 "; then
-        echo "پورت $1 در حال استفاده است. در حال آزادسازی..."
-        # پیدا کردن و متوقف کردن سرویس‌های استفاده کننده از پورت
+        echo "Port $1 is in use. Attempting to free it..."
+        # Find and stop services using the port
         if [ "$1" = "80" ]; then
             systemctl stop apache2 2>/dev/null
             systemctl stop nginx 2>/dev/null
@@ -25,7 +25,7 @@ check_port() {
         fi
         sleep 2
         if netstat -tuln | grep -q ":$1 "; then
-            echo "خطا: نتوانستیم پورت $1 را آزاد کنیم. لطفا به صورت دستی پورت را آزاد کنید."
+            echo "Error: Could not free port $1. Please free it manually."
             exit 1
         fi
     fi
@@ -34,28 +34,28 @@ check_port() {
 check_port 80
 check_port 443
 
-# به‌روزرسانی سیستم
-echo "در حال به‌روزرسانی سیستم..."
+# Update system
+echo "Updating system..."
 apt update && apt upgrade -y
 
-# نصب پکیج‌های مورد نیاز
-echo "در حال نصب پکیج‌های مورد نیاز..."
+# Install required packages
+echo "Installing required packages..."
 apt install -y nginx certbot python3-certbot-nginx net-tools
 
-# ایجاد دایرکتوری وب‌سایت
-echo "در حال ایجاد دایرکتوری وب‌سایت..."
+# Create website directory
+echo "Creating website directory..."
 mkdir -p /var/www/$domain_name/html
 chown -R www-data:www-data /var/www/$domain_name
 chmod -R 755 /var/www/$domain_name
 
-# ایجاد فایل index.html پایه
+# Create base index.html
 cat > /var/www/$domain_name/html/index.html << 'EOF'
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>وب‌سایت آزمون فیزیک</title>
+    <title>Physics Exam Website</title>
     <style>
         body {
             font-family: 'Tahoma', Arial, sans-serif;
@@ -80,15 +80,15 @@ cat > /var/www/$domain_name/html/index.html << 'EOF'
 </head>
 <body>
     <div class="container">
-        <h1>به وب‌سایت آزمون فیزیک خوش آمدید</h1>
-        <p>این یک صفحه موقت است. وب‌سایت شما آماده توسعه است!</p>
+        <h1>Welcome to the Physics Exam Website</h1>
+        <p>This is a temporary page. Your website is ready for development!</p>
     </div>
 </body>
 </html>
 EOF
 
-# ایجاد تنظیمات Nginx
-echo "در حال ایجاد تنظیمات Nginx..."
+# Create Nginx configuration
+echo "Creating Nginx configuration..."
 cat > /etc/nginx/sites-available/$domain_name << EOF
 server {
     listen 80;
@@ -103,29 +103,29 @@ server {
 }
 EOF
 
-# فعال‌سازی سایت
-echo "در حال فعال‌سازی سایت..."
+# Enable site
+echo "Enabling site..."
 ln -s /etc/nginx/sites-available/$domain_name /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
-# تست تنظیمات Nginx
-echo "در حال تست تنظیمات Nginx..."
+# Test Nginx configuration
+echo "Testing Nginx configuration..."
 nginx -t
 
-# راه‌اندازی مجدد Nginx
-echo "در حال راه‌اندازی مجدد Nginx..."
+# Restart Nginx
+echo "Restarting Nginx..."
 systemctl restart nginx
 
-# دریافت گواهی SSL
-echo "در حال دریافت گواهی SSL..."
+# Obtain SSL certificate
+echo "Obtaining SSL certificate..."
 certbot --nginx -d $domain_name -d www.$domain_name --non-interactive --agree-tos --email $email_address
 
-# تنظیم تمدید خودکار گواهی
-echo "در حال تنظیم تمدید خودکار گواهی SSL..."
+# Enable automatic certificate renewal
+echo "Enabling automatic SSL certificate renewal..."
 systemctl enable certbot.timer
 systemctl start certbot.timer
 
-echo "نصب با موفقیت انجام شد!"
-echo "وب‌سایت شما در آدرس زیر قابل دسترسی است: https://$domain_name"
-echo "فایل‌های وب‌سایت در مسیر زیر قرار دارند: /var/www/$domain_name/html"
-echo "شما می‌توانید با ویرایش فایل‌های موجود در این دایرکتوری، وب‌سایت آزمون فیزیک خود را توسعه دهید." 
+echo "Installation completed successfully!"
+echo "Your website is available at: https://$domain_name"
+echo "Website files are located at: /var/www/$domain_name/html"
+echo "You can develop your physics exam website by editing the files in this directory." 
